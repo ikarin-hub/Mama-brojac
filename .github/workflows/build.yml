@@ -1,0 +1,45 @@
+name: Izgradi APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Raspakiraj projekt (ako je ucitan kao zip)
+        run: |
+          if [ ! -f settings.gradle.kts ]; then
+            ZIP=$(ls *.zip | head -n 1)
+            echo "Raspakiravam $ZIP"
+            unzip -q -o "$ZIP"
+          fi
+          ls -la
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Izgradi aplikaciju
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Objavi APK za preuzimanje
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk mama-brojac.apk
+          gh release create "v${{ github.run_number }}" mama-brojac.apk \
+            --title "Mama-brojač (verzija ${{ github.run_number }})" \
+            --notes "S mobitela preuzmi mama-brojac.apk i instaliraj ga." \
+            --target "${{ github.sha }}"
