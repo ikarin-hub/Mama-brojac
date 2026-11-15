@@ -38,8 +38,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/release/app-release.apk say-mom.apk
-          gh release create "v${{ github.run_number }}" say-mom.apk \
-            --title "Say mom (build ${{ github.run_number }})" \
-            --notes "Download say-mom.apk on your phone and install it." \
+          cp app/build/outputs/apk/release/app-release.apk reci-mama.apk
+          gh release create "v${{ github.run_number }}" reci-mama.apk \
+            --title "Reci mama (verzija ${{ github.run_number }})" \
+            --notes "S mobitela preuzmi reci-mama.apk i instaliraj ga." \
             --target "${{ github.sha }}"

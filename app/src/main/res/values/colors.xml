@@ -6,4 +6,8 @@
     <color name="accent">#E4572E</color>
     <color name="line">#F0DCD0</color>
     <color name="card">#FFFFFF</color>
+    <color name="hl">#FFE08A</color>
+    <color name="bar_faint">#F7CDBE</color>
+    <color name="stop_bg">#2B1D17</color>
+    <color name="track">#F3E4DA</color>
 </resources>

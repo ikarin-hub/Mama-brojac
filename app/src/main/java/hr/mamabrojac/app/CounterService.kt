@@ -58,17 +58,7 @@ class CounterService : Service(), RecognitionListener {
     private val unmuteRunnable = Runnable { unmuteBeep() }
 
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        when (key) {
-            Store.COUNT -> updateNotification()
-            Store.LANG -> {
-                // Switch the speech language right away.
-                useDefaultLanguage = false
-                preferOffline = true
-                createChannel()
-                updateNotification()
-                restart(200, recreate = true)
-            }
-        }
+        if (key == Store.COUNT) updateNotification()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -115,8 +105,6 @@ class CounterService : Service(), RecognitionListener {
 
     // ---------------- recognition loop ----------------
 
-    private fun lang() = Store.lang(prefs)
-
     private fun startListening() {
         if (stopped) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -127,7 +115,7 @@ class CounterService : Service(), RecognitionListener {
             it.setRecognitionListener(this)
             recognizer = it
         }
-        val locale = WordCounter.speechLocale(lang())
+        val locale = WordCounter.LOCALE
         val segmented = useSegmented && Build.VERSION.SDK_INT >= 33
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -199,9 +187,9 @@ class CounterService : Service(), RecognitionListener {
 
     private fun handleText(text: String, final: Boolean) {
         // Count as soon as the word shows up in the live guess; never count the same one twice.
-        val n = WordCounter.count(text, lang(), prefs.getBoolean(Store.FORMS, false))
+        val n = WordCounter.count(text, prefs.getBoolean(Store.FORMS, false))
         if (n > countedThisUtterance) {
-            Store.add(prefs, n - countedThisUtterance)
+            Store.add(this, n - countedThisUtterance)
             countedThisUtterance = n
         }
         if (final) {
@@ -431,7 +419,7 @@ class CounterService : Service(), RecognitionListener {
 
     private fun acquireWakeLock() {
         val pm = getSystemService(PowerManager::class.java) ?: return
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SayMom:listen").apply {
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ReciMama:listen").apply {
             setReferenceCounted(false)
             acquire(12L * 60 * 60 * 1000)
         }
@@ -448,9 +436,8 @@ class CounterService : Service(), RecognitionListener {
 
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java) ?: return
-        val l = lang()
-        val ch = NotificationChannel(CHANNEL, Texts.s(l, "channel"), NotificationManager.IMPORTANCE_LOW).apply {
-            description = Texts.s(l, "channel_desc")
+        val ch = NotificationChannel(CHANNEL, Texts.s("channel"), NotificationManager.IMPORTANCE_LOW).apply {
+            description = Texts.s("channel_desc")
             setShowBadge(false)
             setSound(null, null)
         }
@@ -458,7 +445,6 @@ class CounterService : Service(), RecognitionListener {
     }
 
     private fun buildNotification(): Notification {
-        val l = lang()
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -472,14 +458,14 @@ class CounterService : Service(), RecognitionListener {
         val c = prefs.getInt(Store.COUNT, 0)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle(Texts.s(l, "notif_title").format(c))
-            .setContentText(Texts.s(l, "notif_text"))
+            .setContentTitle(Texts.s("notif_title").format(c))
+            .setContentText(Texts.s("notif_text"))
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this, R.drawable.ic_stop), Texts.s(l, "notif_stop"), stop
+                    Icon.createWithResource(this, R.drawable.ic_stop), Texts.s("notif_stop"), stop
                 ).build()
             )
             .build()

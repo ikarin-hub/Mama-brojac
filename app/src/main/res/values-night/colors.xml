@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#16110F</color>
+    <color name="ink">#F7ECE6</color>
+    <color name="muted">#B09A8F</color>
+    <color name="accent">#FF6A45</color>
+    <color name="line">#33261F</color>
+    <color name="card">#221A17</color>
+    <color name="hl">#6E5413</color>
+    <color name="bar_faint">#5B3427</color>
+    <color name="stop_bg">#3B2C26</color>
+    <color name="track">#2A201C</color>
+</resources>

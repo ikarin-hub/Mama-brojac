@@ -2,6 +2,10 @@ package hr.mamabrojac.app
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.temporal.TemporalAdjusters
 
 /** Shared state between the screen and the listening service. */
 object Store {
@@ -11,50 +15,104 @@ object Store {
     const val STATUS = "status"   // status code, translated by Texts
     const val ERROR = "error"     // error code, translated by Texts
     const val TICK = "tick"
-    const val LANG = "lang"       // "en" (default) or "hr"
     const val MUTED = "muted"     // streams we muted, so they can be restored
 
     fun prefs(c: Context): SharedPreferences =
         c.getSharedPreferences("mama", Context.MODE_PRIVATE)
 
-    fun lang(p: SharedPreferences): String =
-        if (p.getString(LANG, "en") == "hr") "hr" else "en"
-
-    fun add(p: SharedPreferences, n: Int) {
+    /** Adds to the main counter and to today's statistics. */
+    fun add(c: Context, n: Int) {
         if (n <= 0) return
+        val p = prefs(c)
         p.edit().putInt(COUNT, p.getInt(COUNT, 0) + n).apply()
+        Stats.add(c, n)
     }
 
+    /** Resets the main counter only; the statistics stay. */
     fun reset(p: SharedPreferences) {
         Live.setPartial("")
         p.edit().putInt(COUNT, 0).putString(LAST, "").apply()
     }
 }
 
-/**
- * English: counts mom, mum, mommy, mummy, mama, momma, mamma.
- * Croatian: counts "mama" (also drawn-out "mamaaa"), optionally with case forms.
- */
+/** Counts "mama" (also drawn-out "mamaaa"), optionally with Croatian case forms. */
 object WordCounter {
-    private val english =
-        Regex("(?<!\\p{L})(?:mom|mum|mommy|mummy|mama|momma|mamma)(?!\\p{L})", RegexOption.IGNORE_CASE)
-    private val croatian =
+    const val LOCALE = "hr-HR"
+
+    private val plain =
         Regex("(?<!\\p{L})mam+a+(?!\\p{L})", RegexOption.IGNORE_CASE)
-    private val croatianForms =
+    private val withForms =
         Regex(
             "(?<!\\p{L})mam+(?:a+|e+|i+|u+|o+|om|ama|ica|ice|ici|icu|ico|icom)(?!\\p{L})",
             RegexOption.IGNORE_CASE
         )
 
-    fun regex(lang: String, forms: Boolean): Regex = when {
-        lang != "hr" -> english
-        forms -> croatianForms
-        else -> croatian
+    fun regex(forms: Boolean): Regex = if (forms) withForms else plain
+
+    fun count(text: String, forms: Boolean): Int = regex(forms).findAll(text).count()
+}
+
+/**
+ * Statistics kept forever: one entry per day ("2026-11-15" -> 37).
+ * Weeks (Monday–Sunday), months and the total are added up from the days.
+ */
+object Stats {
+    fun prefs(c: Context): SharedPreferences =
+        c.getSharedPreferences("stats", Context.MODE_PRIVATE)
+
+    fun add(c: Context, n: Int) {
+        if (n <= 0) return
+        val p = prefs(c)
+        val key = LocalDate.now().toString()
+        p.edit().putInt(key, p.getInt(key, 0) + n).apply()
     }
 
-    fun count(text: String, lang: String, forms: Boolean): Int =
-        regex(lang, forms).findAll(text).count()
+    fun days(c: Context): Map<LocalDate, Int> {
+        val out = HashMap<LocalDate, Int>()
+        for ((k, v) in prefs(c).all) {
+            val d = try {
+                LocalDate.parse(k)
+            } catch (e: Exception) {
+                null
+            } ?: continue
+            if (v is Int) out[d] = v
+        }
+        return out
+    }
 
-    /** Speech recognition language for the app language. */
-    fun speechLocale(lang: String): String = if (lang == "hr") "hr-HR" else "en-US"
+    fun weekStart(d: LocalDate): LocalDate = d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+    fun byWeek(days: Map<LocalDate, Int>): Map<LocalDate, Int> {
+        val out = HashMap<LocalDate, Int>()
+        for ((d, v) in days) {
+            val w = weekStart(d)
+            out[w] = (out[w] ?: 0) + v
+        }
+        return out
+    }
+
+    fun byMonth(days: Map<LocalDate, Int>): Map<YearMonth, Int> {
+        val out = HashMap<YearMonth, Int>()
+        for ((d, v) in days) {
+            val m = YearMonth.from(d)
+            out[m] = (out[m] ?: 0) + v
+        }
+        return out
+    }
+
+    data class Summary(val today: Int, val week: Int, val month: Int, val total: Int)
+
+    fun summary(days: Map<LocalDate, Int>, today: LocalDate = LocalDate.now()): Summary {
+        val ws = weekStart(today)
+        val ym = YearMonth.from(today)
+        var week = 0
+        var month = 0
+        var total = 0
+        for ((d, v) in days) {
+            total += v
+            if (!d.isBefore(ws) && !d.isAfter(today)) week += v
+            if (YearMonth.from(d) == ym) month += v
+        }
+        return Summary(days[today] ?: 0, week, month, total)
+    }
 }

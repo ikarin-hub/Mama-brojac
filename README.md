@@ -1,19 +1,15 @@
-# Say mom (Android)
+# Reci mama (Android)
 
-An app that listens in the background and counts how many times someone says "mom".
+Aplikacija sluša u pozadini i broji koliko je puta netko rekao „mama”.
 
-- Tap **Start listening**. It keeps listening while you use other apps or the screen is locked.
-- While listening, a "Say mom" notification shows the count and a **Stop** button.
-- English (default): listens to English and counts mom, mum, mommy, mummy, mama, momma.
-- Hrvatski (EN/HR button at the top): listens to Croatian and counts "mama", optionally with case forms.
-- Speech is recognized by the phone's built-in Google speech service. No audio is stored.
-- The recognizer's beep is muted for the short moment it restarts between phrases.
-- Prefers on-device recognition (faster); on Android 13+ uses one long continuous session instead of restarting after every sentence; a watchdog restarts the recognizer if it ever stalls.
+- Pritisni **Počni slušati**. Aplikacija nastavlja slušati i kad koristiš druge aplikacije ili zaključaš ekran.
+- Dok sluša, u obavijestima stoji „Reci mama” s brojem i gumbom **Zaustavi**.
+- Broji „mama” (i „mamaaa”), a po želji i padeže (mame, mami, mamu, mamo, mamom…).
+- **Statistika** se trajno pamti po danima: danas, ovaj tjedan, ovaj mjesec, ukupno, graf i cijela povijest po danima, tjednima i mjesecima. „Na nulu” vraća samo glavni brojač, statistika ostaje.
+- Govor prepoznaje Googleova usluga ugrađena u mobitel (prednost prepoznavanju na uređaju). Zvuk se ne sprema.
+- Svijetla i tamna tema prate postavku mobitela.
 
-## Build
+## Gradnja
 
-GitHub Actions (`.github/workflows/build.yml`) builds the APK on every push
-and publishes it under **Releases** as `say-mom.apk`.
-
----
-Copyright © Occhiblu – ivan.karin@gmail.com
+GitHub Actions (`.github/workflows/build.yml`) izgradi APK pri svakoj promjeni
+i objavi ga pod **Releases** kao `reci-mama.apk`.
