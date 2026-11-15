@@ -1,5 +1,11 @@
 # Reci mama (Android)
 
+![Reci mama](docs/social-preview.png)
+
+## 📲 [Preuzmi aplikaciju (najnovija verzija)](https://github.com/ikarin-hub/Mama-brojac/releases/latest/download/reci-mama.apk)
+
+Otvori poveznicu na Android mobitelu, preuzmi `reci-mama.apk` i instaliraj ga (dopusti instalaciju iz preglednika ako pita).
+
 Aplikacija sluša u pozadini i broji koliko je puta netko rekao „mama”.
 
 - Pritisni **Počni slušati**. Aplikacija nastavlja slušati i kad koristiš druge aplikacije ili zaključaš ekran.
