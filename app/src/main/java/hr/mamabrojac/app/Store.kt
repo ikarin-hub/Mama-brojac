@@ -8,7 +8,6 @@ object Store {
     const val COUNT = "count"
     const val FORMS = "forms"
     const val LAST = "last"
-    const val PARTIAL = "partial"
     const val STATUS = "status"   // status code, translated by Texts
     const val ERROR = "error"     // error code, translated by Texts
     const val TICK = "tick"
@@ -27,7 +26,8 @@ object Store {
     }
 
     fun reset(p: SharedPreferences) {
-        p.edit().putInt(COUNT, 0).putString(LAST, "").putString(PARTIAL, "").apply()
+        Live.setPartial("")
+        p.edit().putInt(COUNT, 0).putString(LAST, "").apply()
     }
 }
 

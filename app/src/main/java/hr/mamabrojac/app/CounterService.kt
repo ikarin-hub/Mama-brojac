@@ -45,6 +45,7 @@ class CounterService : Service(), RecognitionListener {
     private var pendingRestart: Runnable? = null
     private var stopped = false
     private var useDefaultLanguage = false
+    private var preferOffline = true   // on-device recognition answers faster when the phone has the language
     private var countedThisUtterance = 0
     private var failures = 0
 
@@ -56,6 +57,7 @@ class CounterService : Service(), RecognitionListener {
             Store.LANG -> {
                 // Switch the speech language right away.
                 useDefaultLanguage = false
+                preferOffline = true
                 createChannel()
                 updateNotification()
                 restart(200, recreate = true)
@@ -125,6 +127,11 @@ class CounterService : Service(), RecognitionListener {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
             }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Ask for longer listening sessions, so there are fewer restarts (some phones ignore this).
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         }
@@ -164,14 +171,13 @@ class CounterService : Service(), RecognitionListener {
         }
         if (final) {
             countedThisUtterance = 0
-            val edit = prefs.edit().putString(Store.PARTIAL, "")
+            Live.setPartial("")
             if (text.isNotBlank()) {
                 val last = ((prefs.getString(Store.LAST, "") ?: "") + " " + text).trim().takeLast(400)
-                edit.putString(Store.LAST, last)
+                prefs.edit().putString(Store.LAST, last).apply()
             }
-            edit.apply()
         } else {
-            prefs.edit().putString(Store.PARTIAL, text).apply()
+            Live.setPartial(text)
         }
     }
 
@@ -208,19 +214,19 @@ class CounterService : Service(), RecognitionListener {
             .orEmpty()
         handleText(text, final = true)
         failures = 0
-        restart(100)
+        restart(30)
     }
 
     override fun onError(error: Int) {
         if (stopped) return
-        prefs.edit().putString(Store.PARTIAL, "").apply()
+        Live.setPartial("")
         countedThisUtterance = 0
         when (error) {
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
                 // Normal during silence: just listen again.
                 setStatus("listening")
-                restart(150)
+                restart(30)
             }
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
             SpeechRecognizer.ERROR_CLIENT -> restart(500, recreate = true)
@@ -233,7 +239,10 @@ class CounterService : Service(), RecognitionListener {
                 restart(minOf(2000L * failures, 15000L), recreate = true)
             }
             12, 13 -> { // language not supported / not available
-                if (!useDefaultLanguage) {
+                if (preferOffline) {
+                    preferOffline = false
+                    restart(100, recreate = true)
+                } else if (!useDefaultLanguage) {
                     useDefaultLanguage = true
                     setStatus("lang_fallback")
                     restart(300, recreate = true)
@@ -345,7 +354,8 @@ class CounterService : Service(), RecognitionListener {
             } catch (e: Exception) {
             }
         }
-        prefs.edit().putString(Store.PARTIAL, "").putLong(Store.TICK, System.currentTimeMillis()).apply()
+        Live.setPartial("")
+        prefs.edit().putLong(Store.TICK, System.currentTimeMillis()).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (stopService) {
             stopSelf()

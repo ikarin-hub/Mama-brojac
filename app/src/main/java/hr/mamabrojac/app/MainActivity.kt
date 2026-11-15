@@ -31,7 +31,6 @@ class MainActivity : Activity() {
     private lateinit var toggleBtn: Button
     private lateinit var batteryBtn: Button
     private lateinit var resetBtn: Button
-    private lateinit var plusBtn: Button
     private lateinit var langEn: Button
     private lateinit var langHr: Button
     private lateinit var formsSwitch: Switch
@@ -45,6 +44,18 @@ class MainActivity : Activity() {
         runOnUiThread { render() }
     }
 
+    // Live text changes many times per second: redraw only the text box, at most ~12 times/s.
+    private var heardPending = false
+    private val liveListener: () -> Unit = {
+        if (!heardPending) {
+            heardPending = true
+            heardView.postDelayed({
+                heardPending = false
+                heardView.text = buildHeard(Store.lang(prefs))
+            }, 80)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -56,7 +67,6 @@ class MainActivity : Activity() {
         toggleBtn = findViewById(R.id.toggle)
         batteryBtn = findViewById(R.id.battery)
         resetBtn = findViewById(R.id.reset)
-        plusBtn = findViewById(R.id.plus)
         langEn = findViewById(R.id.lang_en)
         langHr = findViewById(R.id.lang_hr)
         formsSwitch = findViewById(R.id.forms)
@@ -67,7 +77,6 @@ class MainActivity : Activity() {
 
         toggleBtn.setOnClickListener { onToggle() }
         resetBtn.setOnClickListener { Store.reset(prefs) }
-        plusBtn.setOnClickListener { Store.add(prefs, 1) }
         langEn.setOnClickListener { setLang("en") }
         langHr.setOnClickListener { setLang("hr") }
         formsSwitch.isChecked = prefs.getBoolean(Store.FORMS, false)
@@ -80,12 +89,14 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
+        Live.addListener(liveListener)
         render()
         updateBattery()
     }
 
     override fun onPause() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
+        Live.removeListener(liveListener)
         super.onPause()
     }
 
@@ -136,7 +147,6 @@ class MainActivity : Activity() {
         subtitleView.text = Texts.s(l, "subtitle")
         labelView.text = Texts.s(l, "label")
         resetBtn.text = Texts.s(l, "reset")
-        plusBtn.text = Texts.s(l, "plus")
         heardLabelView.text = Texts.s(l, "heard_label")
         batteryBtn.text = Texts.s(l, "battery")
         footerView.text = Texts.s(l, "footer")
@@ -172,7 +182,7 @@ class MainActivity : Activity() {
 
     private fun buildHeard(l: String): CharSequence {
         val last = prefs.getString(Store.LAST, "") ?: ""
-        val partial = prefs.getString(Store.PARTIAL, "") ?: ""
+        val partial = Live.partial
         val sb = SpannableStringBuilder()
         if (last.isEmpty() && partial.isEmpty()) {
             sb.append(Texts.s(l, "heard_hint"))

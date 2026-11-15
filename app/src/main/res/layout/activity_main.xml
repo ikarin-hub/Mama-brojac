@@ -131,21 +131,8 @@
 
             <Button
                 android:id="@+id/reset"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:layout_weight="1"
-                android:background="@drawable/btn_ghost"
-                android:stateListAnimator="@null"
-                android:text=""
-                android:textAllCaps="false"
-                android:textColor="@color/ink" />
-
-            <Button
-                android:id="@+id/plus"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
                 android:background="@drawable/btn_ghost"
                 android:stateListAnimator="@null"
                 android:text=""

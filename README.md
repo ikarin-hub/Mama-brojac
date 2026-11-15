@@ -8,6 +8,7 @@ An app that listens in the background and counts how many times someone says "mo
 - Hrvatski (EN/HR button at the top): listens to Croatian and counts "mama", optionally with case forms.
 - Speech is recognized by the phone's built-in Google speech service. No audio is stored.
 - The recognizer's beep is muted for the short moment it restarts between phrases.
+- Prefers on-device recognition (faster) and restarts listening with minimal gaps.
 
 ## Build
 
