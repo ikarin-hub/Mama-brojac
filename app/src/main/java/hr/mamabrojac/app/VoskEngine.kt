@@ -10,7 +10,11 @@ import org.vosk.android.StorageService
 
 /**
  * "Fast mode": a small speech model that runs on the phone, without internet,
- * listens continuously (no restarts, no beeps) and only looks for the word "mama".
+ * listens continuously (no restarts, no beeps) and counts the word "mama".
+ *
+ * It decodes freely with its whole vocabulary: in build tests on spoken Croatian this
+ * found about 9 of 10 "mama"s with very few false hits, while restricting it to the
+ * single word "mama" made it hear "mama" in almost everything ("hvala", "ovamo"…).
  */
 class VoskEngine(
     private val context: Context,
@@ -22,8 +26,6 @@ class VoskEngine(
     companion object {
         private const val ASSET_DIR = "model-en-us"
         private const val SAMPLE_RATE = 16000f
-        // Only "mama" or "something else": keeps it fast and avoids false hits.
-        private const val GRAMMAR = "[\"mama\", \"[unk]\"]"
 
         @Volatile
         private var model: Model? = null
@@ -32,6 +34,7 @@ class VoskEngine(
     private var service: SpeechService? = null
     private var stopped = false
     private var countedThisPhrase = 0
+    private var previousPartial = 0
 
     fun start() {
         val m = model
@@ -56,7 +59,7 @@ class VoskEngine(
 
     private fun begin(m: Model) {
         try {
-            val rec = Recognizer(m, SAMPLE_RATE, GRAMMAR)
+            val rec = Recognizer(m, SAMPLE_RATE)
             val s = SpeechService(rec, SAMPLE_RATE)
             service = s
             if (!s.startListening(this)) {
@@ -91,10 +94,14 @@ class VoskEngine(
 
     override fun onPartialResult(hypothesis: String?) {
         if (stopped) return
-        val n = countIn(hypothesis, "partial")
-        if (n > countedThisPhrase) {
-            onWords(n - countedThisPhrase)
-            countedThisPhrase = n
+        // Count from the live guess only once it is stable in two updates in a row
+        // (a fraction of a second), so a word that flickers by is not counted.
+        val now = countIn(hypothesis, "partial")
+        val stable = minOf(now, previousPartial)
+        previousPartial = now
+        if (stable > countedThisPhrase) {
+            onWords(stable - countedThisPhrase)
+            countedThisPhrase = stable
         }
     }
 
@@ -103,6 +110,7 @@ class VoskEngine(
         val n = countIn(hypothesis, "text")
         if (n > countedThisPhrase) onWords(n - countedThisPhrase)
         countedThisPhrase = 0
+        previousPartial = 0
     }
 
     override fun onFinalResult(hypothesis: String?) {

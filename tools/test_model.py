@@ -7,7 +7,7 @@ model_dir, wav_in = sys.argv[1], sys.argv[2]
 subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", wav_in, "-ac", "1", "-ar", "16000", "test16.wav"], check=True)
 
 model = Model(model_dir)
-rec = KaldiRecognizer(model, 16000, json.dumps(["mama", "[unk]"]))
+rec = KaldiRecognizer(model, 16000)  # free decoding, as in the app
 wf = wave.open("test16.wav", "rb")
 found = 0
 while True:
@@ -22,6 +22,6 @@ text = json.loads(rec.FinalResult()).get("text", "")
 print("phrase:", text)
 found += text.split().count("mama")
 print(f"FOUND mama x{found} (spoken 3 times)")
-if found == 0:
-    print("::error::The fast-mode model did not find 'mama' in the test sentence")
+if not 2 <= found <= 4:
+    print("::error::The fast-mode model did not count 'mama' correctly in the test sentence")
     sys.exit(1)

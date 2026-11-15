@@ -344,7 +344,7 @@
                     android:id="@+id/fast_sub"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Neprekidno sluša samo „mama”, bez interneta."
+                    android:text="Neprekidno sluša na samom mobitelu, bez interneta i pauza."
                     android:textColor="@color/muted"
                     android:textSize="13sp" />
             </LinearLayout>

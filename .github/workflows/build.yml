@@ -43,11 +43,6 @@ jobs:
           pip install -q vosk
           espeak-ng -v hr -s 150 -w test.wav "Mama, dođi ovamo. Tata je u kuhinji. Mama, gdje je lopta? Hvala, mama."
           python3 tools/test_model.py app/src/main/assets/model-en-us test.wav 2>&1 | tee model-test.txt
-          if grep -qi "missing in vocabulary\|ignoring word" model-test.txt; then echo "::error::'mama' is not in the model vocabulary"; exit 1; fi
-          mkdir -p models && cp -r app/src/main/assets/model-en-us models/en
-          curl -sSL --retry 3 -o ru.zip https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip && unzip -q ru.zip && mv vosk-model-small-ru-0.22 models/ru
-          curl -sSL --retry 3 -o cs.zip https://alphacephei.com/vosk/models/vosk-model-small-cs-0.4-rhasspy.zip && unzip -q cs.zip && mv vosk-model-small-cs-0.4-rhasspy models/cs
-          python3 tools/eval_model.py || true
 
       - uses: actions/setup-java@v4
         with:

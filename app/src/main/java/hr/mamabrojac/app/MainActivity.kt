@@ -190,7 +190,7 @@ class MainActivity : Activity() {
         fastSub.text = if (failed) {
             "Ne radi na ovom mobitelu – koristim standardno prepoznavanje."
         } else {
-            "Neprekidno sluša samo „mama”, bez interneta."
+            "Neprekidno sluša na samom mobitelu, bez interneta i pauza."
         }
         fastSub.setTextColor(getColor(if (failed) R.color.accent else R.color.muted))
         // Case forms only work with the standard (Google) recognition.
