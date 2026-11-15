@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -48,6 +49,11 @@ class CounterService : Service(), RecognitionListener {
     private var preferOffline = true   // on-device recognition answers faster when the phone has the language
     private var countedThisUtterance = 0
     private var failures = 0
+    private var useSegmented = true
+    private var segmentedFailures = 0
+    private var gotResultThisSession = false
+    private var sessionActive = false
+    private var lastCallback = 0L
 
     private val unmuteRunnable = Runnable { unmuteBeep() }
 
@@ -96,6 +102,8 @@ class CounterService : Service(), RecognitionListener {
             setStatus("starting")
             muteBeep()
             startListening()
+            handler.removeCallbacks(watchdog)
+            handler.postDelayed(watchdog, 2000)
         }
         return START_NOT_STICKY
     }
@@ -120,6 +128,7 @@ class CounterService : Service(), RecognitionListener {
             recognizer = it
         }
         val locale = WordCounter.speechLocale(lang())
+        val segmented = useSegmented && Build.VERSION.SDK_INT >= 33
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             if (!useDefaultLanguage) {
@@ -128,23 +137,34 @@ class CounterService : Service(), RecognitionListener {
             }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            // Ask for longer listening sessions, so there are fewer restarts (some phones ignore this).
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+            if (segmented) {
+                // Android 13+: one long session that hands over results piece by piece,
+                // so there is no gap between sentences (phones that can't do it ignore this).
+                putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 10L * 60 * 1000)
+            } else {
+                // Ask for longer listening sessions, so there are fewer restarts (some phones ignore this).
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+            }
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         }
         countedThisUtterance = 0
+        gotResultThisSession = false
+        sessionActive = true
+        lastCallback = SystemClock.elapsedRealtime()
         try {
             r.startListening(intent)
         } catch (e: Exception) {
-            restart(1000, recreate = true)
+            restart(300, recreate = true)
         }
     }
 
     private fun restart(delayMs: Long, recreate: Boolean = false) {
         if (stopped) return
+        sessionActive = false
         muteBeep()
         pendingRestart?.let { handler.removeCallbacks(it) }
         val task = Runnable {
@@ -160,6 +180,21 @@ class CounterService : Service(), RecognitionListener {
         }
         pendingRestart = task
         handler.postDelayed(task, delayMs)
+    }
+
+    /** The recognizer sometimes hangs without any callback: if it goes silent, start it again. */
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (stopped) return
+            if (sessionActive && SystemClock.elapsedRealtime() - lastCallback > 5000) {
+                restart(0, recreate = true)
+            }
+            handler.postDelayed(this, 2000)
+        }
+    }
+
+    private fun alive() {
+        lastCallback = SystemClock.elapsedRealtime()
     }
 
     private fun handleText(text: String, final: Boolean) {
@@ -181,79 +216,107 @@ class CounterService : Service(), RecognitionListener {
         }
     }
 
+    private fun firstResult(b: Bundle?): String =
+        b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+
     override fun onReadyForSpeech(params: Bundle?) {
+        alive()
+        failures = 0 // the recognizer started fine, so earlier hiccups no longer slow down restarts
         setStatus("listening")
         // The start beep plays right now; give it a moment, then restore the sound.
         handler.removeCallbacks(unmuteRunnable)
         handler.postDelayed(unmuteRunnable, 700)
     }
 
-    override fun onBeginningOfSpeech() {}
+    override fun onBeginningOfSpeech() {
+        alive()
+    }
 
-    override fun onRmsChanged(rmsdB: Float) {}
+    override fun onRmsChanged(rmsdB: Float) {
+        alive()
+    }
 
-    override fun onBufferReceived(buffer: ByteArray?) {}
+    override fun onBufferReceived(buffer: ByteArray?) {
+        alive()
+    }
 
     override fun onEndOfSpeech() {
+        alive()
         // The recognizer may beep when it stops listening: silence it.
         muteBeep()
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
-        val text = partialResults
-            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            ?.firstOrNull()
-            .orEmpty()
+        alive()
+        val text = firstResult(partialResults)
         if (text.isNotBlank()) handleText(text, final = false)
     }
 
     override fun onResults(results: Bundle?) {
-        val text = results
-            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            ?.firstOrNull()
-            .orEmpty()
-        handleText(text, final = true)
-        failures = 0
-        restart(30)
+        alive()
+        gotResultThisSession = true
+        segmentedFailures = 0
+        handleText(firstResult(results), final = true)
+        restart(0)
+    }
+
+    // Android 13+ segmented session: a finished piece of speech, the session keeps going.
+    override fun onSegmentResults(segmentResults: Bundle) {
+        alive()
+        gotResultThisSession = true
+        segmentedFailures = 0
+        handleText(firstResult(segmentResults), final = true)
+    }
+
+    override fun onEndOfSegmentedSession() {
+        alive()
+        restart(0)
     }
 
     override fun onError(error: Int) {
         if (stopped) return
         Live.setPartial("")
         countedThisUtterance = 0
+        // If long sessions keep failing on this phone, go back to the classic mode.
+        if (useSegmented && !gotResultThisSession &&
+            error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+        ) {
+            segmentedFailures++
+            if (segmentedFailures >= 2) useSegmented = false
+        }
         when (error) {
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
                 // Normal during silence: just listen again.
                 setStatus("listening")
-                restart(30)
+                restart(0)
             }
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-            SpeechRecognizer.ERROR_CLIENT -> restart(500, recreate = true)
+            SpeechRecognizer.ERROR_CLIENT -> restart(150, recreate = true)
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("no_perm")
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
             SpeechRecognizer.ERROR_SERVER -> {
                 failures++
                 setStatus("network")
-                restart(minOf(2000L * failures, 15000L), recreate = true)
+                restart(minOf(1000L * failures, 5000L), recreate = true)
             }
             12, 13 -> { // language not supported / not available
                 if (preferOffline) {
                     preferOffline = false
-                    restart(100, recreate = true)
+                    restart(50, recreate = true)
                 } else if (!useDefaultLanguage) {
                     useDefaultLanguage = true
                     setStatus("lang_fallback")
-                    restart(300, recreate = true)
+                    restart(100, recreate = true)
                 } else {
                     failures++
-                    restart(minOf(1000L * failures, 10000L), recreate = true)
+                    restart(minOf(300L * failures, 2000L), recreate = true)
                 }
             }
             else -> {
                 failures++
-                restart(minOf(1000L * failures, 10000L), recreate = true)
+                restart(minOf(300L * failures, 2000L), recreate = true)
             }
         }
     }
@@ -334,6 +397,8 @@ class CounterService : Service(), RecognitionListener {
         stopped = true
         pendingRestart?.let { handler.removeCallbacks(it) }
         pendingRestart = null
+        sessionActive = false
+        handler.removeCallbacks(watchdog)
         try {
             recognizer?.cancel()
             recognizer?.destroy()
