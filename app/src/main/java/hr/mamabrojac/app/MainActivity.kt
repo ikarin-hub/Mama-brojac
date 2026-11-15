@@ -33,6 +33,8 @@ class MainActivity : Activity() {
     private lateinit var weekView: TextView
     private lateinit var totalView: TextView
     private var pulse: ObjectAnimator? = null
+    private lateinit var sensTabs: List<TextView>
+    private lateinit var sensHint: TextView
     private var shownCount = -1
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
@@ -66,6 +68,16 @@ class MainActivity : Activity() {
             findViewById<View>(id).setOnClickListener { openStats() }
         }
         batteryBtn.setOnClickListener { askBattery() }
+
+        sensHint = findViewById(R.id.sens_hint)
+        sensTabs = listOf(
+            findViewById<TextView>(R.id.sens_0),
+            findViewById<TextView>(R.id.sens_1),
+            findViewById<TextView>(R.id.sens_2)
+        )
+        sensTabs.forEachIndexed { i, t ->
+            t.setOnClickListener { prefs.edit().putInt(Store.SENS, i).apply() }
+        }
     }
 
     override fun onResume() {
@@ -150,11 +162,26 @@ class MainActivity : Activity() {
             err.isNotEmpty() -> Texts.s(err)
             else -> Texts.s("not_listening")
         }
+        renderSensitivity()
         if (running) {
             startPulse()
         } else {
             stopPulse()
             statusDot.alpha = 0.45f
+        }
+    }
+
+    private fun renderSensitivity() {
+        val level = prefs.getInt(Store.SENS, 1).coerceIn(0, 2)
+        sensTabs.forEachIndexed { i, t ->
+            val active = i == level
+            t.setBackgroundResource(if (active) R.drawable.tab_selected else 0)
+            t.setTextColor(getColor(if (active) R.color.ink else R.color.muted))
+        }
+        sensHint.text = when (level) {
+            0 -> "Zvuk mikrofona bez pojačanja."
+            1 -> "Pojačano – za govor u istoj sobi."
+            else -> "Najjače – za tiši ili udaljeniji govor; može pogriješiti u buci."
         }
     }
 

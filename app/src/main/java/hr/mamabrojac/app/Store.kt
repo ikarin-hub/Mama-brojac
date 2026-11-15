@@ -15,6 +15,12 @@ object Store {
     const val ERROR = "error"     // error code, translated by Texts
     const val TICK = "tick"
     const val MUTED = "muted"     // streams we muted, so they can be restored
+    const val SENS = "sensitivity" // microphone sensitivity: 0 normal, 1 high (default), 2 highest
+
+    /** Amplification for each sensitivity level. */
+    val GAINS = floatArrayOf(1.0f, 2.5f, 4.0f)
+
+    fun gain(p: SharedPreferences): Float = GAINS[p.getInt(SENS, 1).coerceIn(0, GAINS.size - 1)]
 
     fun prefs(c: Context): SharedPreferences =
         c.getSharedPreferences("mama", Context.MODE_PRIVATE)

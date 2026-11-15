@@ -40,8 +40,14 @@ class CounterService : Service() {
     private var stopped = false
     private var failures = 0
 
+    @Volatile
+    private var currentGain = 1f
+
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == Store.COUNT) updateNotification()
+        when (key) {
+            Store.COUNT -> updateNotification()
+            Store.SENS -> currentGain = Store.gain(prefs) // takes effect immediately
+        }
     }
 
     private val retry = Runnable { startEngine() }
@@ -88,8 +94,10 @@ class CounterService : Service() {
     private fun startEngine() {
         if (stopped) return
         setStatus("preparing")
+        currentGain = Store.gain(prefs)
         val e = VoskEngine(
             this,
+            gain = { currentGain },
             onWords = { n -> Store.add(this, n) },
             onReady = {
                 if (!stopped) {
