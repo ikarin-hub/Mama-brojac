@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -21,7 +22,9 @@ import android.speech.SpeechRecognizer
 
 /**
  * Foreground service that keeps listening (also when the app is in the background),
- * restarts the phone's speech recognizer after every phrase, and counts "mama".
+ * restarts the phone's speech recognizer after every phrase, and counts the word.
+ * The recognizer's start/stop beep is silenced by muting the beep streams only
+ * for the short moment between two listening sessions.
  */
 class CounterService : Service(), RecognitionListener {
 
@@ -37,13 +40,27 @@ class CounterService : Service(), RecognitionListener {
     private val handler = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var audio: AudioManager? = null
+    private val mutedByUs = mutableSetOf<Int>()
+    private var pendingRestart: Runnable? = null
     private var stopped = false
     private var useDefaultLanguage = false
     private var countedThisUtterance = 0
     private var failures = 0
 
-    private val countListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == Store.COUNT) updateNotification()
+    private val unmuteRunnable = Runnable { unmuteBeep() }
+
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        when (key) {
+            Store.COUNT -> updateNotification()
+            Store.LANG -> {
+                // Switch the speech language right away.
+                useDefaultLanguage = false
+                createChannel()
+                updateNotification()
+                restart(200, recreate = true)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -51,6 +68,8 @@ class CounterService : Service(), RecognitionListener {
     override fun onCreate() {
         super.onCreate()
         prefs = Store.prefs(this)
+        audio = getSystemService(AudioManager::class.java)
+        restoreLeftoverMutes()
         createChannel()
     }
 
@@ -62,17 +81,18 @@ class CounterService : Service(), RecognitionListener {
         try {
             goForeground()
         } catch (e: Exception) {
-            fail("Ne mogu pokrenuti slušanje u pozadini.")
+            fail("fg_fail")
             return START_NOT_STICKY
         }
         if (!running) {
             running = true
             stopped = false
             failures = 0
-            prefs.registerOnSharedPreferenceChangeListener(countListener)
+            prefs.registerOnSharedPreferenceChangeListener(prefsListener)
             prefs.edit().putString(Store.ERROR, "").putLong(Store.TICK, System.currentTimeMillis()).apply()
             acquireWakeLock()
-            setStatus("Pokrećem…")
+            setStatus("starting")
+            muteBeep()
             startListening()
         }
         return START_NOT_STICKY
@@ -85,21 +105,24 @@ class CounterService : Service(), RecognitionListener {
 
     // ---------------- recognition loop ----------------
 
+    private fun lang() = Store.lang(prefs)
+
     private fun startListening() {
         if (stopped) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            fail("Na mobitelu nema usluge za prepoznavanje govora. Instaliraj ili ažuriraj aplikaciju Google.")
+            fail("no_service")
             return
         }
         val r = recognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also {
             it.setRecognitionListener(this)
             recognizer = it
         }
+        val locale = WordCounter.speechLocale(lang())
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             if (!useDefaultLanguage) {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hr-HR")
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hr-HR")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
             }
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
@@ -115,8 +138,10 @@ class CounterService : Service(), RecognitionListener {
 
     private fun restart(delayMs: Long, recreate: Boolean = false) {
         if (stopped) return
-        handler.removeCallbacksAndMessages(null)
-        handler.postDelayed({
+        muteBeep()
+        pendingRestart?.let { handler.removeCallbacks(it) }
+        val task = Runnable {
+            pendingRestart = null
             if (recreate) {
                 try {
                     recognizer?.destroy()
@@ -125,12 +150,14 @@ class CounterService : Service(), RecognitionListener {
                 recognizer = null
             }
             startListening()
-        }, delayMs)
+        }
+        pendingRestart = task
+        handler.postDelayed(task, delayMs)
     }
 
     private fun handleText(text: String, final: Boolean) {
-        // Count as soon as a "mama" shows up in the live guess; never count the same one twice.
-        val n = MamaCounter.count(text, prefs.getBoolean(Store.FORMS, false))
+        // Count as soon as the word shows up in the live guess; never count the same one twice.
+        val n = WordCounter.count(text, lang(), prefs.getBoolean(Store.FORMS, false))
         if (n > countedThisUtterance) {
             Store.add(prefs, n - countedThisUtterance)
             countedThisUtterance = n
@@ -149,7 +176,10 @@ class CounterService : Service(), RecognitionListener {
     }
 
     override fun onReadyForSpeech(params: Bundle?) {
-        setStatus("Slušam…")
+        setStatus("listening")
+        // The start beep plays right now; give it a moment, then restore the sound.
+        handler.removeCallbacks(unmuteRunnable)
+        handler.postDelayed(unmuteRunnable, 700)
     }
 
     override fun onBeginningOfSpeech() {}
@@ -158,7 +188,10 @@ class CounterService : Service(), RecognitionListener {
 
     override fun onBufferReceived(buffer: ByteArray?) {}
 
-    override fun onEndOfSpeech() {}
+    override fun onEndOfSpeech() {
+        // The recognizer may beep when it stops listening: silence it.
+        muteBeep()
+    }
 
     override fun onPartialResults(partialResults: Bundle?) {
         val text = partialResults
@@ -186,24 +219,23 @@ class CounterService : Service(), RecognitionListener {
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
                 // Normal during silence: just listen again.
-                setStatus("Slušam…")
+                setStatus("listening")
                 restart(150)
             }
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
             SpeechRecognizer.ERROR_CLIENT -> restart(500, recreate = true)
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                fail("Aplikacija nema dozvolu za mikrofon.")
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("no_perm")
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
             SpeechRecognizer.ERROR_SERVER -> {
                 failures++
-                setStatus("Nema veze s uslugom prepoznavanja – pokušavam ponovno…")
+                setStatus("network")
                 restart(minOf(2000L * failures, 15000L), recreate = true)
             }
             12, 13 -> { // language not supported / not available
                 if (!useDefaultLanguage) {
                     useDefaultLanguage = true
-                    setStatus("Hrvatski nije dostupan – koristim jezik mobitela.")
+                    setStatus("lang_fallback")
                     restart(300, recreate = true)
                 } else {
                     failures++
@@ -219,26 +251,88 @@ class CounterService : Service(), RecognitionListener {
 
     override fun onEvent(eventType: Int, params: Bundle?) {}
 
-    // ---------------- service plumbing ----------------
+    // ---------------- silencing the recognizer beep ----------------
 
-    private fun setStatus(s: String) {
-        if (prefs.getString(Store.STATUS, null) != s) prefs.edit().putString(Store.STATUS, s).apply()
+    private fun muteBeep() {
+        val am = audio ?: return
+        val streams = mutableListOf(AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM)
+        // Only touch the media stream when nothing is playing, so music/videos are never cut.
+        if (!am.isMusicActive) streams += AudioManager.STREAM_MUSIC
+        var changed = false
+        for (s in streams) {
+            if (s in mutedByUs) continue
+            try {
+                if (!am.isStreamMute(s)) {
+                    am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0)
+                    mutedByUs += s
+                    changed = true
+                }
+            } catch (e: Exception) {
+                // e.g. Do Not Disturb forbids changing this stream – skip it.
+            }
+        }
+        if (changed) saveMutes()
+        // Safety net: never leave the sound muted for long.
+        handler.removeCallbacks(unmuteRunnable)
+        handler.postDelayed(unmuteRunnable, 3000)
     }
 
-    private fun fail(message: String) {
-        prefs.edit().putString(Store.ERROR, message).apply()
+    private fun unmuteBeep() {
+        handler.removeCallbacks(unmuteRunnable)
+        val am = audio ?: return
+        for (s in mutedByUs) {
+            try {
+                am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0)
+            } catch (e: Exception) {
+            }
+        }
+        if (mutedByUs.isNotEmpty()) {
+            mutedByUs.clear()
+            saveMutes()
+        }
+    }
+
+    private fun saveMutes() {
+        prefs.edit().putString(Store.MUTED, mutedByUs.joinToString(",")).apply()
+    }
+
+    /** If the app was killed while a stream was muted, give the sound back. */
+    private fun restoreLeftoverMutes() {
+        val saved = prefs.getString(Store.MUTED, "") ?: ""
+        if (saved.isBlank()) return
+        val am = audio
+        for (s in saved.split(",").mapNotNull { it.trim().toIntOrNull() }) {
+            try {
+                am?.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0)
+            } catch (e: Exception) {
+            }
+        }
+        prefs.edit().putString(Store.MUTED, "").apply()
+    }
+
+    // ---------------- service plumbing ----------------
+
+    private fun setStatus(code: String) {
+        if (prefs.getString(Store.STATUS, null) != code) prefs.edit().putString(Store.STATUS, code).apply()
+    }
+
+    private fun fail(code: String) {
+        prefs.edit().putString(Store.ERROR, code).apply()
         shutdown(stopService = true)
     }
 
     private fun shutdown(stopService: Boolean) {
         stopped = true
-        handler.removeCallbacksAndMessages(null)
+        pendingRestart?.let { handler.removeCallbacks(it) }
+        pendingRestart = null
         try {
             recognizer?.cancel()
             recognizer?.destroy()
         } catch (e: Exception) {
         }
         recognizer = null
+        // Give the sound back a little later, in case the recognizer still beeps while closing.
+        handler.postDelayed(unmuteRunnable, 500)
         try {
             wakeLock?.let { if (it.isHeld) it.release() }
         } catch (e: Exception) {
@@ -247,18 +341,22 @@ class CounterService : Service(), RecognitionListener {
         if (running) {
             running = false
             try {
-                prefs.unregisterOnSharedPreferenceChangeListener(countListener)
+                prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
             } catch (e: Exception) {
             }
         }
         prefs.edit().putString(Store.PARTIAL, "").putLong(Store.TICK, System.currentTimeMillis()).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        if (stopService) stopSelf()
+        if (stopService) {
+            stopSelf()
+        } else {
+            unmuteBeep()
+        }
     }
 
     private fun acquireWakeLock() {
         val pm = getSystemService(PowerManager::class.java) ?: return
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MamaBrojac:listen").apply {
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SayMom:listen").apply {
             setReferenceCounted(false)
             acquire(12L * 60 * 60 * 1000)
         }
@@ -275,14 +373,17 @@ class CounterService : Service(), RecognitionListener {
 
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java) ?: return
-        val ch = NotificationChannel(CHANNEL, "Slušanje", NotificationManager.IMPORTANCE_LOW).apply {
-            description = "Prikazuje se dok Mama-brojač sluša"
+        val l = lang()
+        val ch = NotificationChannel(CHANNEL, Texts.s(l, "channel"), NotificationManager.IMPORTANCE_LOW).apply {
+            description = Texts.s(l, "channel_desc")
             setShowBadge(false)
+            setSound(null, null)
         }
         nm.createNotificationChannel(ch)
     }
 
     private fun buildNotification(): Notification {
+        val l = lang()
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -296,14 +397,14 @@ class CounterService : Service(), RecognitionListener {
         val c = prefs.getInt(Store.COUNT, 0)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle("Rečeno „mama”: $c")
-            .setContentText("Slušam i brojim…")
+            .setContentTitle(Texts.s(l, "notif_title").format(c))
+            .setContentText(Texts.s(l, "notif_text"))
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this, R.drawable.ic_stop), "Zaustavi", stop
+                    Icon.createWithResource(this, R.drawable.ic_stop), Texts.s(l, "notif_stop"), stop
                 ).build()
             )
             .build()

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- "Say mom": a speech bubble with a heart cut out of it -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFFFF"
-        android:pathData="M54,28c-4.4,0 -8,3.6 -8,8v16c0,4.4 3.6,8 8,8s8,-3.6 8,-8V36C62,31.6 58.4,28 54,28z" />
-    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M40,50c0,7.7 6.3,14 14,14s14,-6.3 14,-14M54,64v10M46,76h16" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.86" android:scaleY="0.86">
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+            android:pathData="M38,30H70A12,12 0 0 1 82,42V58A12,12 0 0 1 70,70H52L39,80.5V70H38A12,12 0 0 1 26,58V42A12,12 0 0 1 38,30Z M54,62.5C54,62.5 42.5,55.4 42.5,48.3C42.5,44.9 45.1,42.2 48.4,42.2C50.7,42.2 52.8,43.5 54,45.6C55.2,43.5 57.3,42.2 59.6,42.2C62.9,42.2 65.5,44.9 65.5,48.3C65.5,55.4 54,62.5 54,62.5Z" />
+    </group>
 </vector>

@@ -11,20 +11,62 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="serif"
-            android:text="Mama-brojač"
-            android:textColor="@color/ink"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="serif"
+                android:text="Say mom"
+                android:textColor="@color/ink"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/lang_en"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="@drawable/btn_accent"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:stateListAnimator="@null"
+                android:text="EN"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/lang_hr"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/btn_ghost"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:stateListAnimator="@null"
+                android:text="HR"
+                android:textAllCaps="false"
+                android:textColor="@color/ink"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <TextView
+            android:id="@+id/subtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Pritisni „Počni slušati” i ostavi mobitel – broji i kad koristiš druge aplikacije."
+            android:text=""
             android:textColor="@color/muted"
             android:textSize="14sp" />
 
@@ -38,10 +80,11 @@
             android:padding="24dp">
 
             <TextView
+                android:id="@+id/label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.15"
-                android:text="REČENO „MAMA”"
+                android:text=""
                 android:textColor="@color/muted"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -62,7 +105,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="Ne slušam."
+                android:text=""
                 android:textColor="@color/muted"
                 android:textSize="14sp" />
         </LinearLayout>
@@ -74,7 +117,7 @@
             android:layout_marginTop="20dp"
             android:background="@drawable/btn_accent"
             android:stateListAnimator="@null"
-            android:text="Počni slušati"
+            android:text=""
             android:textAllCaps="false"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
@@ -93,7 +136,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/btn_ghost"
                 android:stateListAnimator="@null"
-                android:text="Na nulu"
+                android:text=""
                 android:textAllCaps="false"
                 android:textColor="@color/ink" />
 
@@ -105,7 +148,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/btn_ghost"
                 android:stateListAnimator="@null"
-                android:text="+1 ručno"
+                android:text=""
                 android:textAllCaps="false"
                 android:textColor="@color/ink" />
         </LinearLayout>
@@ -115,17 +158,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Broji i padeže (mame, mami, mamu, mamo, mamom…)"
+            android:text=""
             android:textColor="@color/ink"
             android:textSize="14sp" />
 
         <TextView
+            android:id="@+id/heard_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:layout_marginStart="4dp"
             android:letterSpacing="0.12"
-            android:text="ŠTO SAM ČUO"
+            android:text=""
             android:textColor="@color/muted"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -151,17 +195,18 @@
             android:minHeight="48dp"
             android:padding="12dp"
             android:stateListAnimator="@null"
-            android:text="Dopusti rad u pozadini (isključi štednju baterije)"
+            android:text=""
             android:textAllCaps="false"
             android:textColor="@color/accent"
             android:visibility="gone" />
 
         <TextView
+            android:id="@+id/footer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:gravity="center"
-            android:text="Dok sluša, u obavijestima stoji „Mama-brojač”. Zvuk se ne sprema."
+            android:text=""
             android:textColor="@color/muted"
             android:textSize="12sp" />
     </LinearLayout>

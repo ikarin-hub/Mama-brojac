@@ -1,13 +1,15 @@
-# Mama-brojač (Android)
+# Say mom (Android)
 
-Aplikacija sluša u pozadini i broji koliko je puta netko rekao „mama”.
+An app that listens in the background and counts how many times someone says "mom".
 
-- Pritisni **Počni slušati**. Aplikacija nastavlja slušati i kad otvoriš druge aplikacije ili zaključaš ekran.
-- Dok sluša, u obavijestima stoji „Mama-brojač” s gumbom **Zaustavi**.
-- Za prepoznavanje govora koristi Googleovu uslugu ugrađenu u mobitel (hrvatski, uglavnom treba internet).
-- Zvuk se ne sprema, broje se samo prepoznate riječi.
+- Tap **Start listening**. It keeps listening while you use other apps or the screen is locked.
+- While listening, a "Say mom" notification shows the count and a **Stop** button.
+- English (default): listens to English and counts mom, mum, mommy, mummy, mama, momma.
+- Hrvatski (EN/HR button at the top): listens to Croatian and counts "mama", optionally with case forms.
+- Speech is recognized by the phone's built-in Google speech service. No audio is stored.
+- The recognizer's beep is muted for the short moment it restarts between phrases.
 
-## Gradnja
+## Build
 
-GitHub Actions (`.github/workflows/build.yml`) izgradi APK pri svakoj promjeni u repozitoriju
-i objavi ga pod **Releases** kao `mama-brojac.apk`.
+GitHub Actions (`.github/workflows/build.yml`) builds the APK on every push
+and publishes it under **Releases** as `say-mom.apk`.

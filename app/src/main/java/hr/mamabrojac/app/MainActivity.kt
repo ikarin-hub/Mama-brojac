@@ -30,7 +30,15 @@ class MainActivity : Activity() {
     private lateinit var heardView: TextView
     private lateinit var toggleBtn: Button
     private lateinit var batteryBtn: Button
+    private lateinit var resetBtn: Button
+    private lateinit var plusBtn: Button
+    private lateinit var langEn: Button
+    private lateinit var langHr: Button
     private lateinit var formsSwitch: Switch
+    private lateinit var subtitleView: TextView
+    private lateinit var labelView: TextView
+    private lateinit var heardLabelView: TextView
+    private lateinit var footerView: TextView
     private var shownCount = -1
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
@@ -47,11 +55,21 @@ class MainActivity : Activity() {
         heardView = findViewById(R.id.heard)
         toggleBtn = findViewById(R.id.toggle)
         batteryBtn = findViewById(R.id.battery)
+        resetBtn = findViewById(R.id.reset)
+        plusBtn = findViewById(R.id.plus)
+        langEn = findViewById(R.id.lang_en)
+        langHr = findViewById(R.id.lang_hr)
         formsSwitch = findViewById(R.id.forms)
+        subtitleView = findViewById(R.id.subtitle)
+        labelView = findViewById(R.id.label)
+        heardLabelView = findViewById(R.id.heard_label)
+        footerView = findViewById(R.id.footer)
 
         toggleBtn.setOnClickListener { onToggle() }
-        findViewById<Button>(R.id.reset).setOnClickListener { Store.reset(prefs) }
-        findViewById<Button>(R.id.plus).setOnClickListener { Store.add(prefs, 1) }
+        resetBtn.setOnClickListener { Store.reset(prefs) }
+        plusBtn.setOnClickListener { Store.add(prefs, 1) }
+        langEn.setOnClickListener { setLang("en") }
+        langHr.setOnClickListener { setLang("hr") }
         formsSwitch.isChecked = prefs.getBoolean(Store.FORMS, false)
         formsSwitch.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean(Store.FORMS, on).apply()
@@ -69,6 +87,10 @@ class MainActivity : Activity() {
     override fun onPause() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
         super.onPause()
+    }
+
+    private fun setLang(l: String) {
+        if (Store.lang(prefs) != l) prefs.edit().putString(Store.LANG, l).apply()
     }
 
     private fun onToggle() {
@@ -97,7 +119,7 @@ class MainActivity : Activity() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startCounter()
         } else {
-            prefs.edit().putString(Store.ERROR, "Bez dozvole za mikrofon ne mogu slušati. Dopusti je u postavkama aplikacije.").apply()
+            prefs.edit().putString(Store.ERROR, "perm_denied").apply()
         }
     }
 
@@ -108,31 +130,52 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
+        val l = Store.lang(prefs)
+
+        // Static texts in the chosen language
+        subtitleView.text = Texts.s(l, "subtitle")
+        labelView.text = Texts.s(l, "label")
+        resetBtn.text = Texts.s(l, "reset")
+        plusBtn.text = Texts.s(l, "plus")
+        heardLabelView.text = Texts.s(l, "heard_label")
+        batteryBtn.text = Texts.s(l, "battery")
+        footerView.text = Texts.s(l, "footer")
+        formsSwitch.text = Texts.s(l, "forms")
+        // Case forms only exist in Croatian
+        formsSwitch.visibility = if (l == "hr") View.VISIBLE else View.GONE
+        styleLang(langEn, l == "en")
+        styleLang(langHr, l == "hr")
+
         val c = prefs.getInt(Store.COUNT, 0)
         if (shownCount in 0 until c) bump()
         shownCount = c
         countView.text = c.toString()
 
         val running = CounterService.running
-        toggleBtn.text = if (running) "Zaustavi slušanje" else "Počni slušati"
+        toggleBtn.text = Texts.s(l, if (running) "stop" else "start")
         val err = prefs.getString(Store.ERROR, "") ?: ""
         statusView.text = when {
-            running -> prefs.getString(Store.STATUS, "Slušam…")
-            err.isNotEmpty() -> err
-            else -> "Ne slušam."
+            running -> Texts.s(l, prefs.getString(Store.STATUS, "listening") ?: "listening")
+            err.isNotEmpty() -> Texts.s(l, err)
+            else -> Texts.s(l, "not_listening")
         }
         statusView.setTextColor(
             if (!running && err.isNotEmpty()) Color.parseColor("#E4572E") else Color.parseColor("#8A6F63")
         )
-        heardView.text = buildHeard()
+        heardView.text = buildHeard(l)
     }
 
-    private fun buildHeard(): CharSequence {
+    private fun styleLang(b: Button, active: Boolean) {
+        b.setBackgroundResource(if (active) R.drawable.btn_accent else R.drawable.btn_ghost)
+        b.setTextColor(if (active) Color.WHITE else Color.parseColor("#2B1D17"))
+    }
+
+    private fun buildHeard(l: String): CharSequence {
         val last = prefs.getString(Store.LAST, "") ?: ""
         val partial = prefs.getString(Store.PARTIAL, "") ?: ""
         val sb = SpannableStringBuilder()
         if (last.isEmpty() && partial.isEmpty()) {
-            sb.append("Ovdje će se pojaviti izgovoreni tekst…")
+            sb.append(Texts.s(l, "heard_hint"))
             sb.setSpan(ForegroundColorSpan(Color.parseColor("#8A6F63")), 0, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             return sb
         }
@@ -143,7 +186,7 @@ class MainActivity : Activity() {
             sb.append(partial)
             sb.setSpan(ForegroundColorSpan(Color.parseColor("#8A6F63")), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        val re = MamaCounter.regex(prefs.getBoolean(Store.FORMS, false))
+        val re = WordCounter.regex(l, prefs.getBoolean(Store.FORMS, false))
         for (m in re.findAll(sb.toString())) {
             val s = m.range.first
             val e = m.range.last + 1

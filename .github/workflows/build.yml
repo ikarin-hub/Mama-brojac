@@ -1,4 +1,4 @@
-name: Izgradi APK
+name: Build APK
 
 on:
   push:
@@ -31,15 +31,15 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Izgradi aplikaciju
+      - name: Build app
         run: gradle assembleRelease --no-daemon --stacktrace
 
-      - name: Objavi APK za preuzimanje
+      - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/release/app-release.apk mama-brojac.apk
-          gh release create "v${{ github.run_number }}" mama-brojac.apk \
-            --title "Mama-brojač (verzija ${{ github.run_number }})" \
-            --notes "S mobitela preuzmi mama-brojac.apk i instaliraj ga." \
+          cp app/build/outputs/apk/release/app-release.apk say-mom.apk
+          gh release create "v${{ github.run_number }}" say-mom.apk \
+            --title "Say mom (build ${{ github.run_number }})" \
+            --notes "Download say-mom.apk on your phone and install it." \
             --target "${{ github.sha }}"
