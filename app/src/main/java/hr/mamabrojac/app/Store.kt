@@ -17,8 +17,12 @@ object Store {
     const val MUTED = "muted"     // streams we muted, so they can be restored
     const val SENS = "sensitivity" // microphone sensitivity: 0 normal, 1 high (default), 2 highest
 
-    /** Amplification for each sensitivity level. */
-    val GAINS = floatArrayOf(1.0f, 2.5f, 4.0f)
+    /**
+     * Amplification for each sensitivity level. Chosen from a build test with quiet
+     * Croatian speech: very quiet speech went from 9/27 to 23/27 "mama"s found at 2.5x,
+     * distant speech was only found at 8x (9/27), and normal speech was not harmed.
+     */
+    val GAINS = floatArrayOf(1.0f, 2.5f, 8.0f)
 
     fun gain(p: SharedPreferences): Float = GAINS[p.getInt(SENS, 1).coerceIn(0, GAINS.size - 1)]
 

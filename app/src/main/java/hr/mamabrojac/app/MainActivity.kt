@@ -179,9 +179,9 @@ class MainActivity : Activity() {
             t.setTextColor(getColor(if (active) R.color.ink else R.color.muted))
         }
         sensHint.text = when (level) {
-            0 -> "Zvuk mikrofona bez pojačanja."
-            1 -> "Pojačano – za govor u istoj sobi."
-            else -> "Najjače – za tiši ili udaljeniji govor; može pogriješiti u buci."
+            0 -> "Bez pojačanja."
+            1 -> "Pojačano 2,5× – dobro za tiši govor u istoj sobi."
+            else -> "Pojačano 8× – za udaljeniji govor; u buci može češće pogriješiti."
         }
     }
 
