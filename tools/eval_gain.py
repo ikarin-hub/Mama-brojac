@@ -14,8 +14,10 @@ POS = [("Mama, dođi ovamo.", 1), ("Mama!", 1), ("Mama, mama, gledaj!", 2), ("Gd
 NEG = ["Hvala lijepa.", "Dođi ovamo.", "Malo mlijeka, molim.", "Tamo je lama.", "Nama i vama.",
        "Mačka spava.", "Tata radi.", "Ma daj, nemoj.", "Mala je tamo.", "Gdje je tata?"]
 VOICES = [("hr", 145), ("hr+f3", 155), ("hr+m3", 165)]
-LEVELS = {"normal volume": 1.0, "quiet (-20 dB)": 0.1, "very quiet (-30 dB)": 0.032, "far (-38 dB)": 0.0126}
-GAINS = [1.0, 2.5, 4.0, 8.0]
+LEVELS = {"loud, close (+8 dB)": 2.5, "normal volume": 1.0, "quiet (-20 dB)": 0.1,
+          "very quiet (-30 dB)": 0.032, "far (-38 dB)": 0.0126}
+# ("fixed", g) = old v13 behaviour, ("auto", max) = automatic gain as in the app now
+GAINS = [("fixed", 1.0), ("fixed", 2.5), ("fixed", 8.0), ("auto", 4.0), ("auto", 10.0)]
 NOISE_STD = 25.0  # about -62 dBFS, a typical phone microphone noise floor
 
 def synth(text, voice, speed, i):
@@ -32,6 +34,18 @@ def amplify(x, g):  # same as VoskEngine.amplify
     knee, room = 24000.0, 32767.0 - 24000.0
     out = np.where(a <= knee, a, knee + room * np.tanh((a - knee) / room))
     return np.sign(y) * out
+
+def auto_gain(x, max_gain):  # same as VoskEngine.AutoGain, in 0.1 s steps
+    out = np.empty_like(x)
+    env, gain = 0.0, 1.0
+    for k in range(0, len(x), 1600):
+        c = x[k:k + 1600]
+        peak = float(np.max(np.abs(c))) if len(c) else 0.0
+        env = peak if peak > env else max(peak, env * 0.85)
+        wanted = min(max(12000.0 / max(env, 1.0), 1.0), max(1.0, max_gain))
+        gain = wanted if wanted < gain else gain + (wanted - gain) * 0.2
+        out[k:k + 1600] = amplify(c, gain)
+    return out
 
 def count(samples):
     rec = KaldiRecognizer(model, 16000)
@@ -52,13 +66,14 @@ for v, sp in VOICES:
 
 said = sum(n for _, n in clips)
 for lname, lvl in LEVELS.items():
-    for g in GAINS:
+    for kind, g in GAINS:
         found = false_hits = 0
         for x, n in clips:
             pad = np.zeros(4000, dtype=np.float32)
             quiet = np.concatenate([pad, x * lvl, pad])
             noisy = quiet + rng.normal(0, NOISE_STD, quiet.shape).astype(np.float32)
-            k = count(amplify(noisy, g))
+            noisy = np.clip(noisy, -32768, 32767)  # a real microphone cannot go above full scale
+            k = count(amplify(noisy, g) if kind == "fixed" else auto_gain(noisy, g))
             found += min(k, n)
             false_hits += max(0, k - n)
-        print(f"GAIN | {lname:20s} | gain {g:>3} | found {found}/{said} | false hits {false_hits}")
+        print(f"GAIN | {lname:20s} | {kind:5s} {g:>4} | found {found}/{said} | false hits {false_hits}")

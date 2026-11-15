@@ -35,6 +35,13 @@ class MainActivity : Activity() {
     private var pulse: ObjectAnimator? = null
     private lateinit var sensTabs: List<TextView>
     private lateinit var sensHint: TextView
+    private lateinit var meterFill: View
+    private val meterListener: (Float) -> Unit = { v ->
+        // normal speech fills about two thirds; smooth fall so the bar does not flicker
+        val t = minOf(1f, v * 1.8f)
+        val shown = meterFill.scaleX
+        meterFill.scaleX = if (t > shown) t else maxOf(t, shown * 0.8f)
+    }
     private var shownCount = -1
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
@@ -70,6 +77,9 @@ class MainActivity : Activity() {
         batteryBtn.setOnClickListener { askBattery() }
 
         sensHint = findViewById(R.id.sens_hint)
+        meterFill = findViewById(R.id.meter_fill)
+        meterFill.pivotX = 0f
+        meterFill.scaleX = 0f
         sensTabs = listOf(
             findViewById<TextView>(R.id.sens_0),
             findViewById<TextView>(R.id.sens_1),
@@ -84,6 +94,7 @@ class MainActivity : Activity() {
         super.onResume()
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         statsPrefs.registerOnSharedPreferenceChangeListener(statsListener)
+        MicLevel.addListener(meterListener)
         render()
         renderStats()
         updateBattery()
@@ -92,6 +103,7 @@ class MainActivity : Activity() {
     override fun onPause() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
         statsPrefs.unregisterOnSharedPreferenceChangeListener(statsListener)
+        MicLevel.removeListener(meterListener)
         stopPulse()
         super.onPause()
     }
@@ -168,6 +180,7 @@ class MainActivity : Activity() {
         } else {
             stopPulse()
             statusDot.alpha = 0.45f
+            meterFill.scaleX = 0f
         }
     }
 
@@ -180,8 +193,8 @@ class MainActivity : Activity() {
         }
         sensHint.text = when (level) {
             0 -> "Bez pojačanja."
-            1 -> "Pojačano 2,5× – dobro za tiši govor u istoj sobi."
-            else -> "Pojačano 8× – za udaljeniji govor; u buci može češće pogriješiti."
+            1 -> "Sam pojača tiši govor (do 4×), glasan ne dira."
+            else -> "Sam pojača i udaljeni govor (do 10×); u buci može češće pogriješiti."
         }
     }
 

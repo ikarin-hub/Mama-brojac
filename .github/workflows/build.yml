@@ -43,6 +43,8 @@ jobs:
           pip install -q vosk
           espeak-ng -v hr -s 150 -w test.wav "Mama, dođi ovamo. Tata je u kuhinji. Mama, gdje je lopta? Hvala, mama."
           python3 tools/test_model.py app/src/main/assets/model-en-us test.wav 2>&1 | tee model-test.txt
+          pip install -q numpy
+          python3 tools/eval_gain.py app/src/main/assets/model-en-us || true
 
       - uses: actions/setup-java@v4
         with:

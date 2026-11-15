@@ -97,7 +97,7 @@ class CounterService : Service() {
         currentGain = Store.gain(prefs)
         val e = VoskEngine(
             this,
-            gain = { currentGain },
+            maxGain = { currentGain },
             onWords = { n -> Store.add(this, n) },
             onReady = {
                 if (!stopped) {
