@@ -16,7 +16,6 @@ import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.Switch
 import android.widget.TextView
 
 class MainActivity : Activity() {
@@ -30,12 +29,6 @@ class MainActivity : Activity() {
     private lateinit var toggleIcon: ImageView
     private lateinit var toggleText: TextView
     private lateinit var batteryBtn: Button
-    private lateinit var formsSwitch: Switch
-    private lateinit var fastSwitch: Switch
-    private lateinit var fastSub: TextView
-    private lateinit var formsCard: View
-    private lateinit var formsSub: TextView
-    private var updatingSwitches = false
     private lateinit var todayView: TextView
     private lateinit var weekView: TextView
     private lateinit var totalView: TextView
@@ -63,11 +56,6 @@ class MainActivity : Activity() {
         toggleIcon = findViewById(R.id.toggle_icon)
         toggleText = findViewById(R.id.toggle_text)
         batteryBtn = findViewById(R.id.battery)
-        formsSwitch = findViewById(R.id.forms)
-        fastSwitch = findViewById(R.id.fast)
-        fastSub = findViewById(R.id.fast_sub)
-        formsCard = findViewById(R.id.forms_card)
-        formsSub = findViewById(R.id.forms_sub)
         todayView = findViewById(R.id.today_count)
         weekView = findViewById(R.id.week_count)
         totalView = findViewById(R.id.total_count)
@@ -76,14 +64,6 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.reset).setOnClickListener { confirmReset() }
         for (id in listOf(R.id.stats, R.id.stats_icon, R.id.mini_today, R.id.mini_week, R.id.mini_total)) {
             findViewById<View>(id).setOnClickListener { openStats() }
-        }
-        formsSwitch.isChecked = prefs.getBoolean(Store.FORMS, false)
-        formsSwitch.setOnCheckedChangeListener { _, on ->
-            if (!updatingSwitches) prefs.edit().putBoolean(Store.FORMS, on).apply()
-        }
-        fastSwitch.setOnCheckedChangeListener { _, on ->
-            // Turning it on again also gives it a new chance on this phone.
-            if (!updatingSwitches) prefs.edit().putBoolean(Store.FAST, on).putBoolean(Store.FAST_FAILED, false).apply()
         }
         batteryBtn.setOnClickListener { askBattery() }
     }
@@ -176,27 +156,6 @@ class MainActivity : Activity() {
             stopPulse()
             statusDot.alpha = 0.45f
         }
-        renderSwitches()
-    }
-
-    private fun renderSwitches() {
-        val failed = prefs.getBoolean(Store.FAST_FAILED, false)
-        val fast = prefs.getBoolean(Store.FAST, true) && !failed
-        updatingSwitches = true
-        if (fastSwitch.isChecked != fast) fastSwitch.isChecked = fast
-        val forms = prefs.getBoolean(Store.FORMS, false)
-        if (formsSwitch.isChecked != forms) formsSwitch.isChecked = forms
-        updatingSwitches = false
-        fastSub.text = if (failed) {
-            "Ne radi na ovom mobitelu – koristim standardno prepoznavanje."
-        } else {
-            "Neprekidno sluša na samom mobitelu, bez interneta i pauza."
-        }
-        fastSub.setTextColor(getColor(if (failed) R.color.accent else R.color.muted))
-        // Case forms only work with the standard (Google) recognition.
-        formsSwitch.isEnabled = !fast
-        formsCard.alpha = if (fast) 0.5f else 1f
-        formsSub.text = if (fast) "Samo u standardnom načinu (isključi brzi način)." else "mame, mami, mamu, mamo, mamom…"
     }
 
     private fun renderStats() {

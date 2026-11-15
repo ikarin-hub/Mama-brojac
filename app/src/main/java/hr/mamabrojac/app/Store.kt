@@ -10,14 +10,11 @@ import java.time.temporal.TemporalAdjusters
 /** Shared state between the screen and the listening service. */
 object Store {
     const val COUNT = "count"
-    const val FORMS = "forms"
     const val LAST = "last"
     const val STATUS = "status"   // status code, translated by Texts
     const val ERROR = "error"     // error code, translated by Texts
     const val TICK = "tick"
     const val MUTED = "muted"     // streams we muted, so they can be restored
-    const val FAST = "fast"       // fast mode (on-device "mama" listener), on by default
-    const val FAST_FAILED = "fast_failed" // fast mode did not work on this phone
 
     fun prefs(c: Context): SharedPreferences =
         c.getSharedPreferences("mama", Context.MODE_PRIVATE)
@@ -34,23 +31,6 @@ object Store {
     fun reset(p: SharedPreferences) {
         p.edit().putInt(COUNT, 0).putString(LAST, "").apply()
     }
-}
-
-/** Counts "mama" (also drawn-out "mamaaa"), optionally with Croatian case forms. */
-object WordCounter {
-    const val LOCALE = "hr-HR"
-
-    private val plain =
-        Regex("(?<!\\p{L})mam+a+(?!\\p{L})", RegexOption.IGNORE_CASE)
-    private val withForms =
-        Regex(
-            "(?<!\\p{L})mam+(?:a+|e+|i+|u+|o+|om|ama|ica|ice|ici|icu|ico|icom)(?!\\p{L})",
-            RegexOption.IGNORE_CASE
-        )
-
-    fun regex(forms: Boolean): Regex = if (forms) withForms else plain
-
-    fun count(text: String, forms: Boolean): Int = regex(forms).findAll(text).count()
 }
 
 /**
