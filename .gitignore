@@ -1,0 +1,5 @@
+app/src/main/assets/model-en-us/
+*.zip
+.gradle/
+build/
+app/build/

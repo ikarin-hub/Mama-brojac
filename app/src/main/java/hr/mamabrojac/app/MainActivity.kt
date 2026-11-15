@@ -8,17 +8,11 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.BackgroundColorSpan
-import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -32,12 +26,16 @@ class MainActivity : Activity() {
     private lateinit var countView: TextView
     private lateinit var statusView: TextView
     private lateinit var statusDot: View
-    private lateinit var heardView: TextView
     private lateinit var toggle: View
     private lateinit var toggleIcon: ImageView
     private lateinit var toggleText: TextView
     private lateinit var batteryBtn: Button
     private lateinit var formsSwitch: Switch
+    private lateinit var fastSwitch: Switch
+    private lateinit var fastSub: TextView
+    private lateinit var formsCard: View
+    private lateinit var formsSub: TextView
+    private var updatingSwitches = false
     private lateinit var todayView: TextView
     private lateinit var weekView: TextView
     private lateinit var totalView: TextView
@@ -52,18 +50,6 @@ class MainActivity : Activity() {
         runOnUiThread { renderStats() }
     }
 
-    // Live text changes many times per second: redraw only the text box, at most ~12 times/s.
-    private var heardPending = false
-    private val liveListener: () -> Unit = {
-        if (!heardPending) {
-            heardPending = true
-            heardView.postDelayed({
-                heardPending = false
-                heardView.text = buildHeard()
-            }, 80)
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -73,12 +59,15 @@ class MainActivity : Activity() {
         countView = findViewById(R.id.count)
         statusView = findViewById(R.id.status)
         statusDot = findViewById(R.id.status_dot)
-        heardView = findViewById(R.id.heard)
         toggle = findViewById(R.id.toggle)
         toggleIcon = findViewById(R.id.toggle_icon)
         toggleText = findViewById(R.id.toggle_text)
         batteryBtn = findViewById(R.id.battery)
         formsSwitch = findViewById(R.id.forms)
+        fastSwitch = findViewById(R.id.fast)
+        fastSub = findViewById(R.id.fast_sub)
+        formsCard = findViewById(R.id.forms_card)
+        formsSub = findViewById(R.id.forms_sub)
         todayView = findViewById(R.id.today_count)
         weekView = findViewById(R.id.week_count)
         totalView = findViewById(R.id.total_count)
@@ -90,7 +79,11 @@ class MainActivity : Activity() {
         }
         formsSwitch.isChecked = prefs.getBoolean(Store.FORMS, false)
         formsSwitch.setOnCheckedChangeListener { _, on ->
-            prefs.edit().putBoolean(Store.FORMS, on).apply()
+            if (!updatingSwitches) prefs.edit().putBoolean(Store.FORMS, on).apply()
+        }
+        fastSwitch.setOnCheckedChangeListener { _, on ->
+            // Turning it on again also gives it a new chance on this phone.
+            if (!updatingSwitches) prefs.edit().putBoolean(Store.FAST, on).putBoolean(Store.FAST_FAILED, false).apply()
         }
         batteryBtn.setOnClickListener { askBattery() }
     }
@@ -99,7 +92,6 @@ class MainActivity : Activity() {
         super.onResume()
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         statsPrefs.registerOnSharedPreferenceChangeListener(statsListener)
-        Live.addListener(liveListener)
         render()
         renderStats()
         updateBattery()
@@ -108,7 +100,6 @@ class MainActivity : Activity() {
     override fun onPause() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
         statsPrefs.unregisterOnSharedPreferenceChangeListener(statsListener)
-        Live.removeListener(liveListener)
         stopPulse()
         super.onPause()
     }
@@ -185,7 +176,27 @@ class MainActivity : Activity() {
             stopPulse()
             statusDot.alpha = 0.45f
         }
-        heardView.text = buildHeard()
+        renderSwitches()
+    }
+
+    private fun renderSwitches() {
+        val failed = prefs.getBoolean(Store.FAST_FAILED, false)
+        val fast = prefs.getBoolean(Store.FAST, true) && !failed
+        updatingSwitches = true
+        if (fastSwitch.isChecked != fast) fastSwitch.isChecked = fast
+        val forms = prefs.getBoolean(Store.FORMS, false)
+        if (formsSwitch.isChecked != forms) formsSwitch.isChecked = forms
+        updatingSwitches = false
+        fastSub.text = if (failed) {
+            "Ne radi na ovom mobitelu – koristim standardno prepoznavanje."
+        } else {
+            "Neprekidno sluša samo „mama”, bez interneta."
+        }
+        fastSub.setTextColor(getColor(if (failed) R.color.accent else R.color.muted))
+        // Case forms only work with the standard (Google) recognition.
+        formsSwitch.isEnabled = !fast
+        formsCard.alpha = if (fast) 0.5f else 1f
+        formsSub.text = if (fast) "Samo u standardnom načinu (isključi brzi način)." else "mame, mami, mamu, mamo, mamom…"
     }
 
     private fun renderStats() {
@@ -208,34 +219,6 @@ class MainActivity : Activity() {
     private fun stopPulse() {
         pulse?.cancel()
         pulse = null
-    }
-
-    private fun buildHeard(): CharSequence {
-        val muted = getColor(R.color.muted)
-        val last = prefs.getString(Store.LAST, "") ?: ""
-        val partial = Live.partial
-        val sb = SpannableStringBuilder()
-        if (last.isEmpty() && partial.isEmpty()) {
-            sb.append(Texts.s("heard_hint"))
-            sb.setSpan(ForegroundColorSpan(muted), 0, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            return sb
-        }
-        sb.append(last)
-        if (partial.isNotEmpty()) {
-            if (sb.isNotEmpty()) sb.append(" ")
-            val start = sb.length
-            sb.append(partial)
-            sb.setSpan(ForegroundColorSpan(muted), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        val re = WordCounter.regex(prefs.getBoolean(Store.FORMS, false))
-        val hl = getColor(R.color.hl)
-        for (m in re.findAll(sb.toString())) {
-            val s = m.range.first
-            val e = m.range.last + 1
-            sb.setSpan(BackgroundColorSpan(hl), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            sb.setSpan(StyleSpan(Typeface.BOLD), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        return sb
     }
 
     private fun bump() {

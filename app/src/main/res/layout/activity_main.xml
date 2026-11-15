@@ -313,8 +313,51 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- Fast mode -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="Brzi način"
+                    android:textColor="@color/ink"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/fast_sub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Neprekidno sluša samo „mama”, bez interneta."
+                    android:textColor="@color/muted"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/fast"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
         <!-- Case forms -->
         <LinearLayout
+            android:id="@+id/forms_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -341,6 +384,7 @@
                     android:textSize="15sp" />
 
                 <TextView
+                    android:id="@+id/forms_sub"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="mame, mami, mamu, mamo, mamom…"
@@ -353,30 +397,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
         </LinearLayout>
-
-        <!-- What was heard -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginTop="20dp"
-            android:fontFamily="sans-serif-medium"
-            android:letterSpacing="0.12"
-            android:text="ŠTO SAM ČUO"
-            android:textColor="@color/muted"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/heard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/card"
-            android:lineSpacingMultiplier="1.3"
-            android:minHeight="104dp"
-            android:padding="16dp"
-            android:textColor="@color/ink"
-            android:textSize="16sp" />
 
         <Button
             android:id="@+id/battery"
@@ -397,7 +417,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:gravity="center"
-            android:text="Dok sluša, u obavijestima stoji „Reci mama”. Zvuk se ne sprema."
+            android:text="Dok sluša, u obavijestima stoji „Reci mama”. Zvuk se ne sprema i ne šalje."
             android:textColor="@color/muted"
             android:textSize="12sp" />
 

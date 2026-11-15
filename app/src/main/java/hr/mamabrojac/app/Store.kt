@@ -16,6 +16,8 @@ object Store {
     const val ERROR = "error"     // error code, translated by Texts
     const val TICK = "tick"
     const val MUTED = "muted"     // streams we muted, so they can be restored
+    const val FAST = "fast"       // fast mode (on-device "mama" listener), on by default
+    const val FAST_FAILED = "fast_failed" // fast mode did not work on this phone
 
     fun prefs(c: Context): SharedPreferences =
         c.getSharedPreferences("mama", Context.MODE_PRIVATE)
@@ -30,7 +32,6 @@ object Store {
 
     /** Resets the main counter only; the statistics stay. */
     fun reset(p: SharedPreferences) {
-        Live.setPartial("")
         p.edit().putInt(COUNT, 0).putString(LAST, "").apply()
     }
 }

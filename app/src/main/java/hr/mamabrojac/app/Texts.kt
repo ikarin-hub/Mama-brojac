@@ -5,10 +5,12 @@ object Texts {
     private val hr = mapOf(
         "start" to "Počni slušati",
         "stop" to "Zaustavi slušanje",
-        "heard_hint" to "Ovdje će se pojaviti izgovoreni tekst…",
         "not_listening" to "Ne slušam",
         "starting" to "Pokrećem…",
         "listening" to "Slušam…",
+        "listening_fast" to "Slušam (brzi način)…",
+        "preparing" to "Pripremam brzi način…",
+        "fast_fail" to "Brzi način ne radi na ovom mobitelu – koristim standardni.",
         "network" to "Nema veze s uslugom prepoznavanja – pokušavam ponovno…",
         "lang_fallback" to "Hrvatski nije dostupan za govor – koristim jezik mobitela.",
         "no_service" to "Na mobitelu nema usluge za prepoznavanje govora. Instaliraj ili ažuriraj aplikaciju Google.",

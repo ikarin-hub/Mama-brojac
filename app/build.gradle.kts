@@ -16,6 +16,10 @@ android {
         targetSdk = 34
         versionCode = buildNumber
         versionName = "1.$buildNumber"
+        // Phones only (keeps the app smaller)
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     // Fixed key kept in the project, so updates install without uninstalling first.
@@ -50,4 +54,10 @@ android {
         checkReleaseBuilds = false
         abortOnError = false
     }
+}
+
+dependencies {
+    // Fast mode: on-device speech model (Vosk), downloaded into assets by the build
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("com.alphacephei:vosk-android:0.3.47@aar")
 }

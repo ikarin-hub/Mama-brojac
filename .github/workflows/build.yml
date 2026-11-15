@@ -22,6 +22,20 @@ jobs:
           fi
           ls -la
 
+      - name: Download the fast-mode speech model
+        run: |
+          curl -sSL --retry 3 -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip -q model.zip
+          mkdir -p app/src/main/assets
+          rm -rf app/src/main/assets/model-en-us
+          mv vosk-model-small-en-us-0.15 app/src/main/assets/model-en-us
+          # a new id makes the app unpack the model again after an update
+          echo "${{ github.run_number }}" > app/src/main/assets/model-en-us/uuid
+          find app/src/main/assets/model-en-us -maxdepth 2 | sort
+          WORDS=$(find app/src/main/assets/model-en-us -name words.txt | head -n 1)
+          echo "Vocabulary file: $WORDS"
+          if [ -n "$WORDS" ]; then grep -m1 "^mama " "$WORDS" || { echo "::error::'mama' is not in the model vocabulary"; exit 1; }; fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

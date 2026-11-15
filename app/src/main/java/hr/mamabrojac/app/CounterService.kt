@@ -54,11 +54,16 @@ class CounterService : Service(), RecognitionListener {
     private var gotResultThisSession = false
     private var sessionActive = false
     private var lastCallback = 0L
+    private var vosk: VoskEngine? = null
+    private var usingVosk = false
 
     private val unmuteRunnable = Runnable { unmuteBeep() }
 
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == Store.COUNT) updateNotification()
+        when (key) {
+            Store.COUNT -> updateNotification()
+            Store.FAST -> if (running && !stopped) switchEngine()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -90,8 +95,7 @@ class CounterService : Service(), RecognitionListener {
             prefs.edit().putString(Store.ERROR, "").putLong(Store.TICK, System.currentTimeMillis()).apply()
             acquireWakeLock()
             setStatus("starting")
-            muteBeep()
-            startListening()
+            startEngine()
             handler.removeCallbacks(watchdog)
             handler.postDelayed(watchdog, 2000)
         }
@@ -105,8 +109,78 @@ class CounterService : Service(), RecognitionListener {
 
     // ---------------- recognition loop ----------------
 
-    private fun startListening() {
+    // ---------------- engine choice ----------------
+
+    private fun fastWanted() =
+        prefs.getBoolean(Store.FAST, true) && !prefs.getBoolean(Store.FAST_FAILED, false)
+
+    private fun startEngine() {
         if (stopped) return
+        if (fastWanted()) startFast() else startGoogle()
+    }
+
+    /** Fast mode: on-device model that only listens for "mama". */
+    private fun startFast() {
+        usingVosk = true
+        setStatus("preparing")
+        val engine = VoskEngine(
+            this,
+            onWords = { n -> Store.add(this, n) },
+            onReady = { if (usingVosk && !stopped) setStatus("listening_fast") },
+            onFail = { _ ->
+                if (usingVosk && !stopped) {
+                    // Remember it, so the screen shows it and we don't try again on every start.
+                    prefs.edit().putBoolean(Store.FAST_FAILED, true).apply()
+                    stopFast()
+                    setStatus("fast_fail")
+                    startGoogle()
+                }
+            }
+        )
+        vosk = engine
+        engine.start()
+    }
+
+    private fun stopFast() {
+        usingVosk = false
+        try {
+            vosk?.stop()
+        } catch (e: Exception) {
+        }
+        vosk = null
+    }
+
+    /** Standard mode: the phone's Google speech recognition. */
+    private fun startGoogle() {
+        usingVosk = false
+        muteBeep()
+        startListening()
+    }
+
+    private fun stopGoogle() {
+        pendingRestart?.let { handler.removeCallbacks(it) }
+        pendingRestart = null
+        sessionActive = false
+        try {
+            recognizer?.cancel()
+            recognizer?.destroy()
+        } catch (e: Exception) {
+        }
+        recognizer = null
+        unmuteBeep()
+    }
+
+    private fun switchEngine() {
+        stopFast()
+        stopGoogle()
+        setStatus("starting")
+        handler.postDelayed({ startEngine() }, 300)
+    }
+
+    // ---------------- Google recognition loop ----------------
+
+    private fun startListening() {
+        if (stopped || usingVosk) return
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             fail("no_service")
             return
@@ -151,7 +225,7 @@ class CounterService : Service(), RecognitionListener {
     }
 
     private fun restart(delayMs: Long, recreate: Boolean = false) {
-        if (stopped) return
+        if (stopped || usingVosk) return
         sessionActive = false
         muteBeep()
         pendingRestart?.let { handler.removeCallbacks(it) }
@@ -192,16 +266,7 @@ class CounterService : Service(), RecognitionListener {
             Store.add(this, n - countedThisUtterance)
             countedThisUtterance = n
         }
-        if (final) {
-            countedThisUtterance = 0
-            Live.setPartial("")
-            if (text.isNotBlank()) {
-                val last = ((prefs.getString(Store.LAST, "") ?: "") + " " + text).trim().takeLast(400)
-                prefs.edit().putString(Store.LAST, last).apply()
-            }
-        } else {
-            Live.setPartial(text)
-        }
+        if (final) countedThisUtterance = 0
     }
 
     private fun firstResult(b: Bundle?): String =
@@ -262,8 +327,7 @@ class CounterService : Service(), RecognitionListener {
     }
 
     override fun onError(error: Int) {
-        if (stopped) return
-        Live.setPartial("")
+        if (stopped || usingVosk) return
         countedThisUtterance = 0
         // If long sessions keep failing on this phone, go back to the classic mode.
         if (useSegmented && !gotResultThisSession &&
@@ -407,7 +471,7 @@ class CounterService : Service(), RecognitionListener {
             } catch (e: Exception) {
             }
         }
-        Live.setPartial("")
+        stopFast()
         prefs.edit().putLong(Store.TICK, System.currentTimeMillis()).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (stopService) {
